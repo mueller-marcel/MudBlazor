@@ -1136,7 +1136,6 @@ namespace MudBlazor.UnitTests.Components
         }
 
         [Test]
-        [Obsolete]
         public async Task DataGridEventCallbacksTest()
         {
             var comp = Context.RenderComponent<DataGridEventCallbacksTest>();
@@ -1148,24 +1147,25 @@ namespace MudBlazor.UnitTests.Components
             dataGrid.Instance.SelectedItemChanged.HasDelegate.Should().Be(true);
             dataGrid.Instance.CommittedItemChanges.HasDelegate.Should().Be(true);
             dataGrid.Instance.StartedEditingItem.HasDelegate.Should().Be(true);
-            dataGrid.Instance.CancelledEditingItem.HasDelegate.Should().Be(true);
-            dataGrid.Instance.CancelledEditingItem.Should().Be(dataGrid.Instance.CancelledEditingItem);
+            dataGrid.Instance.CanceledEditingItem.HasDelegate.Should().Be(true);
+            dataGrid.Instance.CanceledEditingItem.Should().Be(dataGrid.Instance.CanceledEditingItem);
 
             // we test to make sure that we can set and get the cancelCallback via the CancelledEditingItem property
-            var cancelCallback = dataGrid.Instance.CancelledEditingItem;
-            dataGrid.SetCallback(dg => dg.CancelledEditingItem, x => { return; });
-            dataGrid.Instance.CancelledEditingItem.Should().NotBe(cancelCallback);
-            dataGrid.Instance.CancelledEditingItem = cancelCallback;
-            dataGrid.Instance.CancelledEditingItem.Should().Be(cancelCallback);
-
+            var cancelCallback = dataGrid.Instance.CanceledEditingItem;
+            dataGrid.SetCallback(dg => dg.CanceledEditingItem, x => { });
+            dataGrid.Instance.CanceledEditingItem.Should().NotBe(cancelCallback);
+            dataGrid.Instance.CanceledEditingItem = cancelCallback;
+            dataGrid.Instance.CanceledEditingItem.Should().Be(cancelCallback);
 
             // Set some parameters manually so that they are covered.
-            var parameters = new List<ComponentParameter>();
-            parameters.Add(ComponentParameter.CreateParameter(nameof(dataGrid.Instance.MultiSelection), true));
-            parameters.Add(ComponentParameter.CreateParameter(nameof(dataGrid.Instance.ReadOnly), false));
-            parameters.Add(ComponentParameter.CreateParameter(nameof(dataGrid.Instance.EditMode), DataGridEditMode.Cell));
-            parameters.Add(ComponentParameter.CreateParameter(nameof(dataGrid.Instance.EditTrigger), DataGridEditTrigger.OnRowClick));
-            dataGrid.SetParametersAndRender(parameters.ToArray());
+            var parameters = new[]
+            {
+                ComponentParameter.CreateParameter(nameof(dataGrid.Instance.MultiSelection), true),
+                ComponentParameter.CreateParameter(nameof(dataGrid.Instance.ReadOnly), false),
+                ComponentParameter.CreateParameter(nameof(dataGrid.Instance.EditMode), DataGridEditMode.Cell),
+                ComponentParameter.CreateParameter(nameof(dataGrid.Instance.EditTrigger), DataGridEditTrigger.OnRowClick)
+            };
+            dataGrid.SetParametersAndRender(parameters);
 
             // Make sure that the callbacks have not been fired yet.
             comp.Instance.RowClicked.Should().Be(false);
@@ -3355,10 +3355,11 @@ namespace MudBlazor.UnitTests.Components
             var hireDate = new DateTime(2011, 1, 2).ToString(CultureInfo.CurrentCulture.DateTimeFormat.ShortDatePattern, CultureInfo.CurrentCulture);
             inputsBefore.Should().BeEquivalentTo("Ira", "27", "Success", "True", hireDate, "00:00");
 
-            var clearButtons = dataGrid.FindAll(".align-self-center");
-            clearButtons.Should().HaveCount(5);
-            foreach (var clearButton in clearButtons)
+            IRefreshableElementCollection<IElement> ClearButtons() => dataGrid.FindAll(".align-self-center");
+            ClearButtons().Should().HaveCount(5);
+            for (var index = 0; index < ClearButtons().Count; index++)
             {
+                var clearButton = ClearButtons()[index];
                 clearButton.Click();
             }
 
@@ -4585,6 +4586,29 @@ namespace MudBlazor.UnitTests.Components
             var source = Array.Empty<DataGridFiltersTest.Model>().AsQueryable();
             var query = source.OrderBy([]);
             query.Should().BeSameAs(source);
+        }
+
+        [Test]
+        public void DataGridEnumLocalization()
+        {
+            var comp = Context.RenderComponent<DataGridFilterEnumLocalizationTest>();
+            var dataGrid = comp.FindComponent<MudDataGrid<DataGridFilterEnumLocalizationTest.Item>>();
+
+            IElement FilterButton() => dataGrid.FindAll(".filter-button")[0];
+
+            // click on the filter button
+            FilterButton().Click();
+
+            IElement SelectElement() => comp.Find("div.mud-select.filter-input");
+            SelectElement().Click();
+
+            var items = comp.FindAll("div.mud-list-item").ToArray();
+
+            items.Length.Should().Be(4);
+            items[0].TextContent.Should().BeEmpty();
+            items[1].TextContent.Should().Be("Free education");
+            items[2].TextContent.Should().Be("Paid training");
+            items[3].TextContent.Should().Be("Untranslated");
         }
     }
 }

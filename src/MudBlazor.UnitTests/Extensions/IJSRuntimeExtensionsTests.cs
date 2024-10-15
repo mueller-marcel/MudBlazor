@@ -2,26 +2,21 @@
 // MudBlazor licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
-using System.Threading.Tasks;
-using Bunit;
 using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using Microsoft.JSInterop.Infrastructure;
 using Moq;
-using MudBlazor.Services;
-using MudBlazor.UnitTests.TestComponents;
+using MudBlazor.UnitTests.Mocks;
 using NUnit.Framework;
 
-namespace MudBlazor.UnitTests.Services
+namespace MudBlazor.UnitTests
 {
-    public class IIJSRuntimeExtentionsTests
+#nullable enable
+    public class IJSRuntimeExtensionsTests
     {
-        static object[] CatchedExceptions =
+        private static object[] _caughtExceptions =
         {
-            #if DEBUG
-#else
+#if !DEBUG
             new object[] { new JSException("only testing") },
 #endif
             new object[] { new TaskCanceledException() },
@@ -33,8 +28,10 @@ namespace MudBlazor.UnitTests.Services
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
-                .ReturnsAsync(Mock.Of<IJSVoidResult>()).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
+                .ReturnsAsync(Mock.Of<IJSVoidResult>())
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
@@ -43,35 +40,38 @@ namespace MudBlazor.UnitTests.Services
             runtimeMock.Verify();
         }
 
-        [TestCaseSource(nameof(CatchedExceptions))]
+        [TestCaseSource(nameof(_caughtExceptions))]
         public async Task InvokeVoidAsyncWithErrorHandling_Exception<T>(T ex) where T : Exception
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
-                .Throws(ex).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
+                .Throws(ex)
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
             await runtime.InvokeVoidAsyncWithErrorHandling("myMethod", 42, "blub");
 
             runtimeMock.Verify();
-
         }
 
         [Test]
-        public void InvokeVoidAsyncWithErrorHandling_ThrowsForUncatchedExceptions()
+        public async Task InvokeVoidAsyncWithErrorHandling_ThrowsForUncaughtExceptions()
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
-                .Throws(new InvalidOperationException("mhh that is odd")).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<IJSVoidResult>("myMethod", It.IsAny<object[]>()))
+                .Throws(new InvalidOperationException("mhh that is odd"))
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
-            var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await runtime.InvokeVoidAsyncWithErrorHandling("myMethod", 42, "blub"));
+            var exception = async () => { await runtime.InvokeVoidAsyncWithErrorHandling("myMethod", 42, "blub"); };
 
-            ex.Message.Should().Be("mhh that is odd");
+            await exception.Should().ThrowAsync<InvalidOperationException>().WithMessage("mhh that is odd");
             runtimeMock.Verify();
         }
 
@@ -80,8 +80,10 @@ namespace MudBlazor.UnitTests.Services
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
-                .ReturnsAsync(42.0).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
+                .ReturnsAsync(42.0)
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
@@ -92,13 +94,15 @@ namespace MudBlazor.UnitTests.Services
             runtimeMock.Verify();
         }
 
-        [TestCaseSource(nameof(CatchedExceptions))]
+        [TestCaseSource(nameof(_caughtExceptions))]
         public async Task InvokeAsyncWithErrorHandling_Exception_WithDefaultValue<T>(T ex) where T : Exception
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
-                .Throws(ex).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
+                .Throws(ex)
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
@@ -109,17 +113,19 @@ namespace MudBlazor.UnitTests.Services
             runtimeMock.Verify();
         }
 
-        [TestCaseSource(nameof(CatchedExceptions))]
+        [TestCaseSource(nameof(_caughtExceptions))]
         public async Task InvokeAsyncWithErrorHandling_Exception_WithFallbackValue<T>(T ex) where T : Exception
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
-            runtimeMock.Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
-                .Throws(ex).Verifiable();
+            runtimeMock
+                .Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
+                .Throws(ex)
+                .Verifiable();
 
             var runtime = runtimeMock.Object;
 
-            var (success, value) = await runtime.InvokeAsyncWithErrorHandling<double>(37.5, "myMethod", 42, "blub");
+            var (success, value) = await runtime.InvokeAsyncWithErrorHandling(37.5, "myMethod", 42, "blub");
 
             success.Should().Be(false);
             value.Should().Be(37.5);
@@ -127,20 +133,34 @@ namespace MudBlazor.UnitTests.Services
         }
 
         [Test]
-        public void InvokeAsyncWithErrorHandling_ThrowsForUncatchedExceptions()
+        public async Task InvokeAsyncWithErrorHandling_ThrowsForUncaughtExceptions()
         {
             var runtimeMock = new Mock<IJSRuntime>(MockBehavior.Strict);
 
             runtimeMock.Setup(x => x.InvokeAsync<double>("myMethod", It.IsAny<object[]>()))
-                 .Throws(new InvalidOperationException("mhh that is odd")).Verifiable();
+                 .Throws(new InvalidOperationException("mhh that is odd"))
+                 .Verifiable();
 
             var runtime = runtimeMock.Object;
 
-            var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await runtime.InvokeAsyncWithErrorHandling<double>("myMethod", 42, "blub"));
+            var exception = async () => { await runtime.InvokeAsyncWithErrorHandling<double>("myMethod", 42, "blub"); };
 
-            ex.Message.Should().Be("mhh that is odd");
+            await exception.Should().ThrowAsync<InvalidOperationException>().WithMessage("mhh that is odd");
             runtimeMock.Verify();
         }
 
+        [Test]
+        public async Task InvokeAsyncWithErrorHandling_ShouldReturnFallbackValue_WhenUnsupportedJavaScriptRuntime()
+        {
+            // Arrange
+            var jsRuntime = new UnsupportedJavaScriptRuntime();
+
+            // Act
+            var result = await jsRuntime.InvokeAsyncWithErrorHandling("fallback", "myMethod", 42, "blub");
+
+            // Assert
+            result.success.Should().BeFalse();
+            result.value.Should().Be("fallback");
+        }
     }
 }
