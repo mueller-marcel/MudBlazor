@@ -145,14 +145,14 @@ namespace MudBlazor
         }
 
         /// <summary>
-        /// The outer div's classnames, seperated by space.
+        /// The outer div's classnames, separated by space.
         /// </summary>
         [Category(CategoryTypes.FormComponent.Appearance)]
         [Parameter]
         public string? OuterClass { get; set; }
 
         /// <summary>
-        /// Input's classnames, seperated by space.
+        /// Input's classnames, separated by space.
         /// </summary>
         [Category(CategoryTypes.FormComponent.Appearance)]
         [Parameter]
@@ -1043,17 +1043,14 @@ namespace MudBlazor
             return base.OnBlur.InvokeAsync(obj);
         }
 
-        protected override void Dispose(bool disposing)
+        /// <inheritdoc />
+        protected override async ValueTask DisposeAsyncCore()
         {
-            base.Dispose(disposing);
+            await base.DisposeAsyncCore();
 
-            if (disposing)
+            if (IsJSRuntimeAvailable)
             {
-                if (IsJSRuntimeAvailable)
-                {
-                    // TODO: Replace with IAsyncDisposable
-                    KeyInterceptorService.UnsubscribeAsync(_elementId).CatchAndLog();
-                }
+                await KeyInterceptorService.UnsubscribeAsync(_elementId);
             }
         }
 
