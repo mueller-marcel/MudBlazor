@@ -2,24 +2,22 @@
 // MudBlazor licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
+using MudBlazor.State;
 using MudBlazor.Utilities;
 
 namespace MudBlazor
 {
 #nullable enable
-
     /// <summary>
     /// A list of clickable page numbers along with navigation buttons.
     /// </summary>
     public partial class MudPagination : MudComponentBase
     {
-        private int _count = 1;
-        private int _selected = 1;
-        private int _middleCount = 3;
-        private int _boundaryCount = 2;
-        private bool _selectedFirstSet;
+        private ParameterState<int> _countState;
+        private ParameterState<int> _selectedState;
+        private ParameterState<int> _middleCountState;
+        private ParameterState<int> _boundaryCountState;
 
         private string Classname =>
             new CssBuilder("mud-pagination")
@@ -40,11 +38,29 @@ namespace MudBlazor
                 .AddClass("mud-pagination-item-selected")
                 .Build();
 
+        public MudPagination()
+        {
+            using var register = CreateRegisterScope();
+            _selectedState = register.RegisterParameter<int>(nameof(Selected))
+                .WithParameter(() => Selected)
+                .WithEventCallback(() => SelectedChanged)
+                .WithChangeHandler(args => SetSelectedAsync(args.Value));
+            _countState = register.RegisterParameter<int>(nameof(Count))
+                .WithParameter(() => Count)
+                .WithChangeHandler(args => SetCountAsync(args.Value));
+            _middleCountState = register.RegisterParameter<int>(nameof(MiddleCount))
+                .WithParameter(() => MiddleCount)
+                .WithChangeHandler(args => SetMiddleCount(args.Value));
+            _boundaryCountState = register.RegisterParameter<int>(nameof(BoundaryCount))
+                .WithParameter(() => BoundaryCount)
+                .WithChangeHandler(args => SetBoundaryCount(args.Value));
+        }
+
         /// <summary>
         /// Displays text right-to-left.
         /// </summary>
         /// <remarks>
-        /// Defaults to <c>false</c>.  Controlled via the <see cref="MudRTLProvider"/>.
+        /// Defaults to <c>false</c>. Controlled via the <see cref="MudRTLProvider"/>.
         /// </remarks>
         [CascadingParameter(Name = "RightToLeft")]
         public bool RightToLeft { get; set; }
@@ -54,79 +70,38 @@ namespace MudBlazor
         /// </summary>
         [Parameter]
         [Category(CategoryTypes.Pagination.Behavior)]
-        public int Count
-        {
-            get => _count;
-            set
-            {
-                _count = Math.Max(1, value);
-                Selected = Math.Min(Selected, _count);
-            }
-        }
+        public int Count { get; set; } = 1;
 
         /// <summary>
         /// The number of pages shown before and after the ellipsis.
         /// </summary>
         /// <remarks>
         /// Defaults to <c>1</c>. <br />
-        /// A value of <c>1</c> would show one page number at the edge: <c>&lt; 1 ... 4 5 6 ... 9 &gt;</c> <br />
-        /// A value of <c>2</c> would show two page numbers at the edge: <c>&lt; 1 2 ... 4 5 6 ... 8 9 &gt;</c> 
+        /// A value of <c>1</c> would show one-page number at the edge: <c>&lt; 1 ... 4 5 6 ... 9 &gt;</c> <br />
+        /// A value of <c>2</c> would show two-page numbers at the edge: <c>&lt; 1 2 ... 4 5 6 ... 8 9 &gt;</c> 
         /// </remarks>
         [Parameter]
         [Category(CategoryTypes.Pagination.Appearance)]
-        public int BoundaryCount
-        {
-            get => _boundaryCount;
-            set
-            {
-                _boundaryCount = Math.Max(1, value);
-            }
-        }
+        public int BoundaryCount { get; set; } = 2;
 
         /// <summary>
         /// The number of pages shown between the ellipsis.
         /// </summary>
         /// <remarks>
         /// Defaults to <c>1</c>. <br />
-        /// A value of <c>1</c> would show one page number in the middle: <c>&lt; 1 ... 5 ... 9 &gt;</c> <br />
-        /// A value of <c>3</c> would show three page numbers in the middle: <c>&lt; 1 ... 4 5 6 ... 9 &gt;</c>
+        /// A value of <c>1</c> would show one-page number in the middle: <c>&lt; 1 ... 5 ... 9 &gt;</c> <br />
+        /// A value of <c>3</c> would show three-page numbers in the middle: <c>&lt; 1 ... 4 5 6 ... 9 &gt;</c>
         /// </remarks>
         [Parameter]
         [Category(CategoryTypes.Pagination.Appearance)]
-        public int MiddleCount
-        {
-            get => _middleCount;
-            set
-            {
-                _middleCount = Math.Max(1, value);
-            }
-        }
+        public int MiddleCount { get; set; } = 3;
 
         /// <summary>
         /// The selected page number.
         /// </summary>
         [Parameter]
         [Category(CategoryTypes.Pagination.Behavior)]
-        public int Selected
-        {
-            get => _selected;
-            set
-            {
-                if (_selected == value)
-                    return;
-
-                //this is required because _selected will stay 1 when Count is not yet set
-                if (!_selectedFirstSet)
-                {
-                    _selected = value;
-                    _selectedFirstSet = true;
-                }
-                else
-                    _selected = Math.Max(1, Math.Min(value, Count));
-
-                SelectedChanged.InvokeAsync(_selected);
-            }
-        }
+        public int Selected { get; set; } = 1;
 
         /// <summary>
         /// The display variant to use.
@@ -290,90 +265,142 @@ namespace MudBlazor
         /*generates an array representing the pagination numbers, e.g. for Count==11, MiddleCount==3, BoundaryCount==1,
          Selected==6 the output will be the int array [1, 2, -1, 5, 6, 7, -1, 10, 11]
          -1 is displayed as "..." in the ui*/
-        private IEnumerable<int> GeneratePagination()
+        private int[] GeneratePagination()
         {
             //return array {1, ..., Count} if Count is small 
-            if (Count <= 4 || Count <= (2 * BoundaryCount) + MiddleCount + 2)
-                return Enumerable.Range(1, Count).ToArray();
+            if (_countState.Value <= 4 || _countState.Value <= (2 * _boundaryCountState.Value) + _middleCountState.Value + 2)
+            {
+                var result = new int[_countState.Value];
+                for (var i = 0; i < _countState.Value; i++)
+                {
+                    result[i] = i + 1;
+                }
 
-            var length = (2 * BoundaryCount) + MiddleCount + 2;
+                return result;
+            }
+
+            var length = (2 * _boundaryCountState.Value) + _middleCountState.Value + 2;
             var pages = new int[length];
 
             //set start boundary items, e.g. if BoundaryCount == 3 => [1, 2, 3, ...]
-            for (var i = 0; i < BoundaryCount; i++)
+            for (var i = 0; i < _boundaryCountState.Value; i++)
             {
                 pages[i] = i + 1;
             }
 
             //set end boundary items, e.g. if BoundaryCount == 3 and Count == 11 => [..., 9, 10, 11]
-            for (var i = 0; i < BoundaryCount; i++)
+            for (var i = 0; i < _boundaryCountState.Value; i++)
             {
-                pages[length - i - 1] = Count - i;
+                pages[length - i - 1] = _countState.Value - i;
             }
 
             //calculate start value for middle items
             int startValue;
-            if (Selected <= BoundaryCount + (MiddleCount / 2) + 1)
-                startValue = BoundaryCount + 2;
-            else if (Selected >= Count - BoundaryCount - (MiddleCount / 2))
-                startValue = Count - BoundaryCount - MiddleCount;
+            if (_selectedState.Value <= _boundaryCountState.Value + (_middleCountState.Value / 2) + 1)
+            {
+                startValue = _boundaryCountState.Value + 2;
+            }
+            else if (_selectedState.Value >= _countState.Value - _boundaryCountState.Value - (_middleCountState.Value / 2))
+            {
+                startValue = _countState.Value - _boundaryCountState.Value - _middleCountState.Value;
+            }
             else
-                startValue = Selected - (MiddleCount / 2);
+            {
+                startValue = _selectedState.Value - (_middleCountState.Value / 2);
+            }
 
             //set middle items, e.g. if MiddleCount == 3 and Selected == 5 and Count == 11 => [..., 4, 5, 6, ...] 
-            for (var i = 0; i < MiddleCount; i++)
+            for (var i = 0; i < _middleCountState.Value; i++)
             {
-                pages[BoundaryCount + 1 + i] = startValue + i;
+                pages[_boundaryCountState.Value + 1 + i] = startValue + i;
             }
 
             //set start delimiter "..." when selected page is far enough to the end, dots are represented as -1
-            pages[BoundaryCount] = (BoundaryCount + (MiddleCount / 2) + 1 < Selected) ? -1 : BoundaryCount + 1;
+            pages[_boundaryCountState.Value] = (_boundaryCountState.Value + (_middleCountState.Value / 2) + 1 < _selectedState.Value) ? -1 : _boundaryCountState.Value + 1;
 
             //set end delimiter "..." when selected page is far enough to the start, dots are represented as -1
-            pages[length - BoundaryCount - 1] = (Count - BoundaryCount - (MiddleCount / 2) > Selected) ? -1 : Count - BoundaryCount;
+            pages[length - _boundaryCountState.Value - 1] = (_countState.Value - _boundaryCountState.Value - (_middleCountState.Value / 2) > _selectedState.Value) ? -1 : _countState.Value - _boundaryCountState.Value;
 
             //remove ellipsis if difference is small enough, e.g convert [..., 5 , -1 , 7, ...] to [..., 5, 6, 7, ...]
             for (var i = 0; i < length - 2; i++)
             {
                 if (pages[i] + 2 == pages[i + 2])
+                {
                     pages[i + 1] = pages[i] + 1;
+                }
             }
 
             return pages;
         }
 
         //triggered when the user clicks on a control button, e.g. the navigate-to-next-page-button
-        private void OnClickControlButton(Page page)
+        private Task OnClickControlButtonAsync(Page page)
         {
             ControlButtonClicked.InvokeAsync(page);
-            NavigateTo(page);
+
+            return NavigateToAsync(page);
         }
 
-        //Last line cannot be tested because Page enum has 4 items
         /// <summary>
         /// Changes the currently selected page.
         /// </summary>
         /// <param name="page">The page to navigate to.</param>
-        [ExcludeFromCodeCoverage]
-        public void NavigateTo(Page page)
+        public Task NavigateToAsync(Page page)
         {
-            Selected = page switch
+            var newPageIndex = page switch
             {
                 Page.First => 1,
-                Page.Last => Math.Max(1, Count),
-                Page.Next => Math.Min(Selected + 1, Count),
-                Page.Previous => Math.Max(1, Selected - 1),
-                _ => Selected
+                Page.Last => Math.Max(1, _countState.Value),
+                Page.Next => Math.Min(_selectedState.Value + 1, _countState.Value),
+                Page.Previous => Math.Max(1, _selectedState.Value - 1),
+                _ => _selectedState.Value
             };
+
+            return SetSelectedAsync(newPageIndex);
         }
 
         /// <summary>
         /// Changes the currently selected page.
         /// </summary>
         /// <param name="pageIndex">The index of the page to select, where the first page is <c>0</c>.</param>
-        public void NavigateTo(int pageIndex)
+        public Task NavigateToAsync(int pageIndex)
         {
-            Selected = pageIndex + 1;
+            var newPageIndex = pageIndex + 1;
+
+            return SetSelectedAsync(newPageIndex);
+        }
+
+        private Task SetMiddleCount(int count)
+        {
+            var newCount = Math.Max(1, count);
+
+            return _middleCountState.SetValueAsync(newCount);
+        }
+
+        private Task SetBoundaryCount(int count)
+        {
+            var newCount = Math.Max(1, count);
+
+            return _boundaryCountState.SetValueAsync(newCount);
+        }
+
+        private async Task SetCountAsync(int count)
+        {
+            var newCount = Math.Max(1, count);
+            await _countState.SetValueAsync(newCount);
+            await SetSelectedAsync(Math.Min(_selectedState.Value, newCount));
+        }
+
+        private async Task SetSelectedAsync(int pageIndex)
+        {
+            if (_selectedState.Value == pageIndex)
+            {
+                return;
+            }
+
+            var newPageIndex = Math.Max(1, Math.Min(pageIndex, _countState.Value));
+
+            await _selectedState.SetValueAsync(newPageIndex);
         }
     }
 }

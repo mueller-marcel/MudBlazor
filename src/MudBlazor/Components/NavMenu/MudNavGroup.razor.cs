@@ -72,6 +72,16 @@ namespace MudBlazor
         private NavigationContext? ParentNavigationContext { get; set; }
 
         /// <summary>
+        /// The content within the title area.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>null</c>.  When set, overrides the <see cref="Title"/> property.
+        /// </remarks>
+        [Parameter]
+        [Category(CategoryTypes.NavMenu.Behavior)]
+        public RenderFragment? TitleContent { get; set; }
+
+        /// <summary>
         /// The text shown for this group.
         /// </summary>
         [Parameter]
