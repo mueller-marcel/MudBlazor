@@ -17,6 +17,7 @@ namespace MudBlazor
     /// Represents a column filter shown when <see cref="MudDataGrid{T}.FilterMode"/> is <see cref="DataGridFilterMode.ColumnFilterRow"/>.
     /// </summary>
     /// <typeparam name="T">The type of value managed by the <see cref="MudDataGrid{T}"/></typeparam>
+    /// <seealso cref="MudDataGrid{T}"/>
     public partial class FilterHeaderCell<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T> : MudComponentBase
     {
         /// <summary>
@@ -62,11 +63,11 @@ namespace MudBlazor
 
         private FieldType fieldType => FieldType.Identify(dataType);
 
-        private string[] operators
+        private IReadOnlyCollection<string> operators
         {
             get
             {
-                return FilterOperator.GetOperatorByDataType(dataType);
+                return Column.GetFilterOperators(FieldType.Identify(dataType));
             }
         }
 
